@@ -13,6 +13,9 @@ A comprehensive fleet management system with real-time GPS tracking, passenger R
 - **Media Management**: Upload and manage images via Cloudinary integration
 - **TCP Server**: Dedicated TCP server for GPS tracker device communication
 
+  <img width="1920" height="897" alt="desktop-screenshot" src="https://github.com/user-attachments/assets/347c2bdf-75a5-4869-9038-fd6bf0f4e952" />
+
+
 ## 🔮 Planned Features
 
 The following features are planned for future implementation:
