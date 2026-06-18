@@ -2,7 +2,12 @@ import { Redis } from "ioredis";
 import dotenv from "dotenv"
 dotenv.config()
 
-export const redisClient = new Redis(process.env.REDIS_URL as string, {
+if (!process.env.REDIS_URL) {
+  console.error("❌ Fatal Error: REDIS_URL environment variable is not defined!");
+  process.exit(1);
+}
+
+export const redisClient = new Redis(process.env.REDIS_URL, {
   tls: { rejectUnauthorized: false }, // for Upstash SSL
   maxRetriesPerRequest: null,    
 });

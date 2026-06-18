@@ -83,9 +83,25 @@ async function start() {
   });
 
   // Start TCP server which will use app.get('io') to emit messages
-  await startTcpServer(TCP_PORT);
+  try {
+    await startTcpServer(TCP_PORT);
+    console.log(`✅ TCP Server started on port ${TCP_PORT}`);
 
-  console.log(`✅ TCP Server started on port ${TCP_PORT}`);
+    if (process.env.RENDER === "true") {
+      console.warn(
+        `⚠️ Render Deployment Note: The GPS TCP Tracker server is listening on port ${TCP_PORT} internally. ` +
+        "However, Render Web Services only expose/route HTTP/Socket.IO traffic on the primary PORT from the internet. " +
+        "To allow external GPS devices to connect directly, you must configure a TCP proxy/tunnel (like ngrok) or deploy the TCP server as a Render Private Service."
+      );
+    }
+  } catch (err: any) {
+    console.error(`❌ Failed to start TCP server on port ${TCP_PORT}:`, err.message || err);
+    if (process.env.RENDER === "true") {
+      console.warn("⚠️ Continuing application boot despite TCP Server failure because RENDER=true.");
+    } else {
+      throw err;
+    }
+  }
 }
 
 start().catch((err) => {

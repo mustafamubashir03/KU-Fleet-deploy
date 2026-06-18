@@ -156,20 +156,8 @@ export const analyticsWorker = new Worker<AnalyticsJobPayload>(
   baseWorkerOpts
 );
 
-/* -------------------------- CLEANUP WORKER -------------------------- */
-export const cleanupWorker = new Worker<CleanupJobPayload>(
-  "cleanupQueue",
-  async () => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
-
-    await TripLog.deleteMany({ endTime: { $lt: cutoff } });
-  },
-  baseWorkerOpts
-);
-
 /* -------------------------- LOGGING -------------------------- */
-[tripWorker, analyticsWorker, cleanupWorker].forEach(worker => {
+[tripWorker, analyticsWorker].forEach(worker => {
   worker.on("completed", job => console.log(`✅ ${worker.name} completed ${job.name}`));
   worker.on("failed", (job, err) => console.error(`❌ ${worker.name} failed ${job?.name}`, err));
 });

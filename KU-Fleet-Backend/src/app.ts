@@ -23,6 +23,7 @@ import rfidRoutes from "./routes/rfidRoutes";
 // Workers/cron jobs
 // Workers (single entry point)
 import "./workers/workers";
+import "./workers/cleanupWorker";
 import "./workers/cronJobs";
 
 
