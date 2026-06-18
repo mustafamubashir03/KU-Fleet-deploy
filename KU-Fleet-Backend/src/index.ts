@@ -13,8 +13,7 @@ import cors from "cors"
 import dotenv from "dotenv"
 import express from 'express'
 import { connectDB } from "./config/db";
-import "./workers/tripWorker";
-import "./workers/analyticsWorker";
+import "./workers/workers";
 import "./workers/cleanupWorker";
 import "./workers/cronJobs";
 dotenv.config()

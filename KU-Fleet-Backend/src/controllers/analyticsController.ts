@@ -5,6 +5,7 @@ import TripLog from "../models/TripLog.model";
 import Alert from "../models/Alert.model";
 import Feedback from "../models/Feedback.model";
 import { cacheHelpers } from "../config/redis";
+import { routeParam } from "../utils/validation";
 
 /** -----------------------------
  *  GET /api/analytics/overview
@@ -50,7 +51,10 @@ export const getFleetOverview = async (req: Request, res: Response) => {
  *  ----------------------------- */
 export const getBusAnalytics = async (req: Request, res: Response) => {
   try {
-    const busId = req.params.id;
+    const busId = routeParam(req.params.id);
+    if (!busId) {
+      return res.status(400).json({ message: "Bus ID is required" });
+    }
     const cacheKey = `analytics:bus:${busId}`;
     const cached = await cacheHelpers.getAnalyticsData(cacheKey);
     if (cached) return res.status(200).json({ success: true, ...cached });
@@ -93,7 +97,10 @@ export const getBusAnalytics = async (req: Request, res: Response) => {
  *  ----------------------------- */
 export const getDriverAnalytics = async (req: Request, res: Response) => {
   try {
-    const driverId = req.params.id;
+    const driverId = routeParam(req.params.id);
+    if (!driverId) {
+      return res.status(400).json({ message: "Driver ID is required" });
+    }
     const cacheKey = `analytics:driver:${driverId}`;
     const cached = await cacheHelpers.getAnalyticsData(cacheKey);
     if (cached) return res.status(200).json({ success: true, ...cached });

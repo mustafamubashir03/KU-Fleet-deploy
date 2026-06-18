@@ -11,6 +11,7 @@ import { bufferCoordinate } from "../services/gpsBuffer";
 import { getSocketIO, ROOMS, EVENTS } from "../utils/socketHelper";
 import { buildCameraStreamUrl } from "../utils/buildCameraURL";
 import { IBus } from "../interfaces/Bus";
+import { routeParam } from "../utils/validation";
 
 // GET /api/buses — List all buses
 /** ✅ Get all buses */
@@ -309,7 +310,7 @@ export const unassignDriver = async (req: Request, res: Response) => {
 // GET /api/buses/:id/location — Get bus current location
 export const getBusLocation = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = routeParam(req.params.id);
     
     if (!id) {
       return res.status(400).json({ message: "Bus ID is required" });
@@ -350,7 +351,7 @@ export const getBusLocation = async (req: Request, res: Response) => {
 // PUT /api/buses/:id/location — Update bus location
 export const updateBusLocation = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = routeParam(req.params.id);
     const { coordinates, speed, timestamp } = req.body;
     
     if (!id) {

@@ -68,6 +68,14 @@ export const isValidPhone = (phone: string): boolean => {
 };
 
 /**
+ * Coerce Express route param to a single string (handles string | string[]).
+ */
+export const routeParam = (value: string | string[] | undefined): string => {
+  if (value === undefined) return "";
+  return Array.isArray(value) ? value[0] ?? "" : value;
+};
+
+/**
  * Validate required fields
  * Returns array of missing fields
  */

@@ -24,6 +24,15 @@ export interface CleanupJobPayload {
   force?: boolean;
 }
 
+export type TripJobName = "saveTripSegment" | "endTrip";
+export type AnalyticsJobName = "generateDailyAnalytics";
+export type CleanupJobName =
+  | "cleanupOldTripLogs"
+  | "cleanupOldAlerts"
+  | "cleanupOldFeedback"
+  | "clearExpiredCache"
+  | "archiveOldData";
+
 /* -------------------------- WORKER OPTIONS -------------------------- */
 const baseWorkerOpts: WorkerOptions = {
   connection: redisClient,

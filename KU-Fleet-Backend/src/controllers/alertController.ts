@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { wrapAsync, AppError } from "../middleware/errorHandler";
 import { AlertService } from "../workers/alert.service";
+import { routeParam } from "../utils/validation";
 
 
 // Example: Create alert
@@ -11,7 +12,7 @@ export const createAlert = wrapAsync(async (req: Request, res: Response) => {
 
 // Example: Resolve alert
 export const resolveAlert = wrapAsync(async (req: Request, res: Response) => {
-  const alert = await AlertService.resolveAlert(req.params.id || "");
+  const alert = await AlertService.resolveAlert(routeParam(req.params.id));
   res.status(200).json({ success: true, message: "Alert resolved successfully", alert });
 });
 
@@ -23,6 +24,6 @@ export const getAlertStats = wrapAsync(async (req: Request, res: Response) => {
 
 // Example: Get bus alerts
 export const getBusAlerts = wrapAsync(async (req: Request, res: Response) => {
-  const alerts = await AlertService.getBusAlerts(req.params.busId || "", req.query.resolved === "true", Number(req.query.limit) || 50);
+  const alerts = await AlertService.getBusAlerts(routeParam(req.params.busId), req.query.resolved === "true", Number(req.query.limit) || 50);
   res.status(200).json({ success: true, count: alerts.length, alerts });
 });
