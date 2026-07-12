@@ -2,7 +2,7 @@
 
 A comprehensive fleet management system with real-time GPS tracking, passenger RFID monitoring, and route management for bus fleet operations.
 
-## 🚀 Features
+## Features
 
 - **Real-time GPS Tracking**: Live location tracking of buses using GT06 GPS protocol
 - **RFID Passenger Tracking**: Monitor passenger boarding and alighting via RFID cards
@@ -16,14 +16,14 @@ A comprehensive fleet management system with real-time GPS tracking, passenger R
   <img width="1920" height="897" alt="desktop-screenshot" src="https://github.com/user-attachments/assets/347c2bdf-75a5-4869-9038-fd6bf0f4e952" />
 
 
-## 🔮 Planned Features
+## Planned Features
 
 The following features are planned for future implementation:
 
 - **Analytics Dashboard**: Comprehensive analytics on trips, routes, and bus performance
 - **Alert System**: Real-time alerts for speed violations, route deviations, and system events
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -36,7 +36,7 @@ The following features are planned for future implementation:
 - [Development](#development)
 - [Contributing](#contributing)
 
-## 🛠 Tech Stack
+## Tech Stack
 
 ### Backend
 
@@ -66,7 +66,7 @@ The following features are planned for future implementation:
 - **Routing**: React Router DOM
 - **Real-time**: Socket.IO Client
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 KU-Fleet/
@@ -109,7 +109,7 @@ KU-Fleet/
     └── tailwind.config.ts
 ```
 
-## ✅ Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -119,7 +119,7 @@ Before you begin, ensure you have the following installed:
 - **Redis** (local or Upstash account)
 - **Git**
 
-## 📦 Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -199,7 +199,7 @@ VITE_API_BASE_URL=http://localhost:3000
 VITE_GOOGLE_MAPS_API_KEY=your-google-maps-api-key
 ```
 
-## 🚀 Running the Application
+## Running the Application
 
 ### Development Mode
 
@@ -333,7 +333,7 @@ For complete API documentation, refer to `KU-Fleet-Backend/API_ENDPOINTS.md` or 
 - `bus:{busId}` - Specific bus updates
 - `imei:{imei}` - Specific device updates
 
-## 🔐 Environment Variables Reference
+## Environment Variables Reference
 
 ### Backend Required Variables
 
@@ -367,7 +367,7 @@ For complete API documentation, refer to `KU-Fleet-Backend/API_ENDPOINTS.md` or 
 | `VITE_API_BASE_URL` | Backend API base URL | `http://localhost:3000` |
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Maps API key | `your-api-key` |
 
-## 🧪 Development
+## Development
 
 ### Backend Scripts
 
@@ -439,7 +439,7 @@ npm run lint
 
 
 
-## 📞 Support
+## Support
 
 For issues, questions, or contributions, please open an issue on the repository.
 
