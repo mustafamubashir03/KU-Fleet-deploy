@@ -67,33 +67,41 @@ export const strictRateLimiter = rateLimit({
  * Example attack: { $ne: null } or { $gt: "" } in query params
  */
 export const sanitizeInput = (req: Request, res: Response, next: NextFunction): void => {
-  // Recursively sanitize object to remove MongoDB operators
-  const sanitize = (obj: any): any => {
-    if (obj === null || obj === undefined) return obj;
-    
-    if (Array.isArray(obj)) {
-      return obj.map(sanitize);
-    }
-    
-    if (typeof obj === "object") {
-      const sanitized: any = {};
-      for (const key in obj) {
-        // Block MongoDB operators
-        if (key.startsWith("$")) {
-          continue; // Skip dangerous operators
-        }
-        sanitized[key] = sanitize(obj[key]);
+  /**
+   * Strip MongoDB operators from body, query and params.
+   *
+   * Express 5 defines `req.query` as a GETTER-ONLY property on the request
+   * instance. A plain `req.query = value` therefore throws
+   *   "Cannot set property query of #<IncomingMessage> which has only a getter"
+   * and turns EVERY request into a 500. It must be replaced with
+   * Object.defineProperty, which can shadow the accessor.
+   */
+  const stripOperators = (obj: any): any => {
+    if (obj === null || obj === undefined || typeof obj !== "object") return obj;
+    for (const key of Object.keys(obj)) {
+      if (key.startsWith("$")) {
+        delete obj[key];
+      } else {
+        stripOperators(obj[key]);
       }
-      return sanitized;
     }
-    
     return obj;
   };
 
-  // Sanitize all input sources
-  if (req.body) req.body = sanitize(req.body);
-  if (req.query) req.query = sanitize(req.query);
-  if (req.params) req.params = sanitize(req.params);
+  if (req.body) stripOperators(req.body);
+
+  if (req.params) stripOperators(req.params);
+
+  // Shadow the getter-only `query` accessor with a sanitized plain object.
+  if (req.query) {
+    const safeQuery = stripOperators({ ...req.query });
+    Object.defineProperty(req, "query", {
+      value: safeQuery,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  }
 
   next();
 };

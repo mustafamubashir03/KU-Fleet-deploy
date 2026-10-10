@@ -73,7 +73,6 @@ export async function generateDailyAnalytics(): Promise<void> {
   };
 
   await cacheHelpers.setAnalyticsData(`daily:${dateKey}`, analytics, 86400); // 24h
-  console.log("📊 Daily analytics saved:", analytics);
 }
 
 /* -------------------- BUS ANALYTICS -------------------- */
@@ -123,7 +122,6 @@ export async function generateRouteAnalytics(routeId: string): Promise<void> {
   await cacheHelpers.setAnalyticsData(`route:${routeId}:${dateKey}`, analytics, 86400);
 }
 
-/* -------------------- ALERT TREND ANALYTICS -------------------- */
 /* -------------------- ALERT TRENDS ANALYTICS -------------------- */
 export async function generateAlertAnalytics(): Promise<void> {
   const cacheKey = "analytics:alerts";
@@ -139,7 +137,5 @@ export async function generateAlertAnalytics(): Promise<void> {
 
   // Cache for 10 minutes
   await cacheHelpers.setAnalyticsData(cacheKey, alertTrends, 600);
-
-  console.log("📊 Alert trends analytics saved:", alertTrends);
 }
 

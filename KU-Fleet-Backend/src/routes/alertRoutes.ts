@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import { protect, adminOnly } from "../middleware/AuthMiddleware";
 import {
   createAlert,
@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 // Public route (system-generated alerts)
-router.post("/", createAlert);
+router.post("/", protect, createAlert);
 
 // Protected routes
 router.get("/stats", protect, getAlertStats);

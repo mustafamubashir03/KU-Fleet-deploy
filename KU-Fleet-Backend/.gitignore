@@ -8,8 +8,13 @@ node_modules/
 .npm/
 .yarn/
 .yarnrc
-package-lock.json
 yarn.lock
+
+# package-lock.json is NOT ignored.
+# It used to be, which made `npm ci` impossible in CI and in deploy-ec2.yml
+# ("npm ci can only install with an existing package-lock.json").
+# A committed lockfile is required for reproducible installs on EC2.
+!package-lock.json
 
 # Build output
 dist/

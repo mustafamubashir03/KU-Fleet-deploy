@@ -90,7 +90,7 @@ export const TripService = {
         }
       );
     } catch (err) {
-      console.error("❌ TripLog updateOne failed:", err);
+      console.error("TripLog updateOne failed:", err);
     }
 
     try {
@@ -100,7 +100,7 @@ export const TripService = {
         lastCacheValue.set(busId, coord);
       }
     } catch (err) {
-      console.warn("⚠️ Cache write failed:", err);
+      console.warn("Cache write failed:", err);
     }
 
     // Overspeed alert
@@ -114,7 +114,7 @@ export const TripService = {
           timestamp: ts,
         });
       } catch (err) {
-        console.error("❌ Alert.create failed:", err);
+        console.error("Alert.create failed:", err);
       }
     }
   },
@@ -145,7 +145,7 @@ export const TripService = {
 
       await trip.save();
     } catch (err) {
-      console.error("❌ TripLog endTrip failed:", err);
+      console.error("TripLog endTrip failed:", err);
     }
 
     // Clear cache
@@ -154,7 +154,7 @@ export const TripService = {
       lastCacheWriteAt.delete(busId);
       lastCacheValue.delete(busId);
     } catch (err) {
-      console.warn("⚠️ Cache clearing failed:", err);
+      console.warn("Cache clearing failed:", err);
     }
   },
 
@@ -168,9 +168,9 @@ export const TripService = {
 
     try {
       const deleted = await TripLog.deleteMany({ createdAt: { $lt: cutoff }, endTime: { $ne: null } });
-      console.log(`🧹 Deleted ${deleted.deletedCount} old trip logs`);
+      console.log(`Deleted ${deleted.deletedCount} old trip logs`);
     } catch (err) {
-      console.error("❌ dailyCleanup failed:", err);
+      console.error("dailyCleanup failed:", err);
     }
   },
 
@@ -187,7 +187,7 @@ export const TripService = {
         lastUpdate: new Date(),
       });
     } catch (err) {
-      console.error("❌ Bus.findByIdAndUpdate failed:", err);
+      console.error("Bus.findByIdAndUpdate failed:", err);
     }
 
     if (location && shouldWriteCache(busId, location)) {
@@ -196,7 +196,7 @@ export const TripService = {
         lastCacheWriteAt.set(busId, Date.now());
         lastCacheValue.set(busId, location);
       } catch (err) {
-        console.warn("⚠️ Cache update failed:", err);
+        console.warn("Cache update failed:", err);
       }
     }
   },

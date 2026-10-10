@@ -1,12 +1,12 @@
-// src/workers/cleanupWorker.ts
+﻿// src/workers/cleanupWorker.ts
 import { Worker, Job, type ConnectionOptions } from "bullmq";
-import type { CleanupJobName, CleanupJobPayload } from "./workers";
+import type { CleanupJobName } from "./workers";
 import { redisClient } from "../config/redis";
 import TripLog from "../models/TripLog.model";
 import Alert from "../models/Alert.model";
 import Feedback from "../models/Feedback.model";
-import dotenv from "dotenv";
-dotenv.config();
+import "../config/env";
+
 
 /* --------------------- Safety Controls ---------------------- */
 let redisHealthy = true;
@@ -48,9 +48,9 @@ async function scanKeys(pattern: string): Promise<string[]> {
 }
 
 /* --------------------- Worker Definition ---------------------- */
-export const cleanupWorker = new Worker<CleanupJobPayload, void, CleanupJobName>(
+export const cleanupWorker = new Worker<Record<string, never>, void, CleanupJobName>(
   "cleanupQueue",
-  async (job: Job<CleanupJobPayload, void, CleanupJobName>) => {
+  async (job: Job<Record<string, never>, void, CleanupJobName>) => {
     console.log(`🧽 Processing cleanup job: ${job.name}`);
 
     if (isRedisInCooldown()) {

@@ -1,10 +1,13 @@
-// src/core/app.ts
+﻿// src/core/app.ts
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
+import "./config/env";
 
 // Error handlers
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
+// Security middleware. These existed but were never mounted, so the running app
+// had no security headers, no rate limiting and no NoSQL-operator stripping.
+import { securityHeaders, apiRateLimiter, sanitizeInput } from "./middleware/security";
 
 // Routes
 import authRoutes from "./routes/authRoutes";
@@ -27,13 +30,16 @@ import "./workers/cleanupWorker";
 import "./workers/cronJobs";
 
 
-dotenv.config();
+
 
 export const app = express();
 
 // ============================
 // ESSENTIAL MIDDLEWARE ONLY
 // ============================
+
+// Security headers (helmet)
+app.use(securityHeaders);
 
 // CORS configuration
 const corsOptions = {
@@ -47,6 +53,10 @@ app.use(cors(corsOptions));
 // Body parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Strip MongoDB operators ($ne, $gt, ...) from body/query/params so request
+// input cannot be used for NoSQL injection.
+app.use(sanitizeInput);
 
 // ============================
 // ROUTES

@@ -41,6 +41,6 @@ export async function setBusLocationThrottled(
       timestamp: new Date(),
     });
   } catch (err) {
-    console.warn(`⚠️ Throttled cache write failed for bus ${busId}:`, err);
+    console.warn(`Throttled cache write failed for bus ${busId}:`, err);
   }
 }

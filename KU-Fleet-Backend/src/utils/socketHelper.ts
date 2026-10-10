@@ -1,8 +1,7 @@
 // src/utils/socketHelper.ts
 // Centralized Socket.IO helper to avoid multiple initializations and provide type-safe access
 
-import { Server as SocketIOServer } from "socket.io";
-import { app } from "../app";
+import type { Server as SocketIOServer } from "socket.io";
 
 let ioInstance: SocketIOServer | null = null;
 
@@ -16,19 +15,16 @@ export function setSocketIO(io: SocketIOServer): void {
 /**
  * Get Socket.IO instance safely
  * Returns null if not initialized (prevents crashes)
+ *
+ * NOTE: this module deliberately does NOT import ../app. It used to, which
+ * created a circular import (app -> routes -> ... -> socketHelper -> app) and
+ * meant that anything touching a Socket.IO helper — including the GT06 TCP path
+ * via services/gpsHandler — transitively booted the whole Express app, all
+ * workers and the Redis client. server.ts always calls setSocketIO() during
+ * startup, so the stored instance is the single source of truth.
  */
 export function getSocketIO(): SocketIOServer | null {
-  // Try multiple access patterns for compatibility
-  if (ioInstance) return ioInstance;
-  
-  // Fallback to app storage pattern (used in server.ts)
-  const ioFromApp = (app as any).get?.("io");
-  if (ioFromApp) {
-    ioInstance = ioFromApp;
-    return ioInstance;
-  }
-  
-  return null;
+  return ioInstance;
 }
 
 /**

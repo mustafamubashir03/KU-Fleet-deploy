@@ -6,13 +6,13 @@ import TripLog from "../models/TripLog.model";
 import bcrypt from "bcrypt";
 import { wrapAsync } from "../middleware/errorHandler";
 
-// ✅ GET /api/drivers — List all drivers
+// GET /api/drivers — List all drivers
 export const getAllDrivers = wrapAsync(async (req: Request, res: Response) => {
   const drivers = await User.find({ role: "driver" }).select("-password");
   res.status(200).json(drivers);
 });
 
-// ✅ GET /api/drivers/:id — Get driver details
+// GET /api/drivers/:id — Get driver details
 export const getDriverById = wrapAsync(async (req: Request, res: Response) => {
   const driver = await User.findById(req.params.id).select("-password");
   if (!driver || driver.role !== "driver")
@@ -23,7 +23,7 @@ export const getDriverById = wrapAsync(async (req: Request, res: Response) => {
 });
 
 
-/** ✅ Register a new driver (admin-only) */
+/** Register a new driver (admin-only) */
 export const createDriver = wrapAsync(async (req: Request, res: Response) => {
   const {
     name,
@@ -80,7 +80,7 @@ export const createDriver = wrapAsync(async (req: Request, res: Response) => {
 });
 
 
-// ✅ PATCH /api/drivers/:id — Update driver info
+// PATCH /api/drivers/:id — Update driver info
 export const updateDriver = wrapAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const {
@@ -137,7 +137,7 @@ export const updateDriver = wrapAsync(async (req: Request, res: Response) => {
   });
 });
 
-// ✅ DELETE /api/drivers/:id — Deactivate driver
+// DELETE /api/drivers/:id — Deactivate driver
 export const deactivateDriver = wrapAsync(async (req: Request, res: Response) => {
   const driver = await User.findByIdAndUpdate(req.params.id, { status: "inactive" }, { new: true });
   if (!driver || driver.role !== "driver")
@@ -146,7 +146,7 @@ export const deactivateDriver = wrapAsync(async (req: Request, res: Response) =>
   res.status(200).json({ message: "Driver deactivated", driver });
 });
 
-// ✅ POST /api/drivers/:id/assign-bus — Assign driver to bus
+// POST /api/drivers/:id/assign-bus — Assign driver to bus
 export const assignDriverToBus = wrapAsync(async (req: Request, res: Response) => {
   const { busId } = req.body;
   const driverId = req.params.id;
@@ -165,7 +165,7 @@ export const assignDriverToBus = wrapAsync(async (req: Request, res: Response) =
   res.status(200).json({ message: "Driver assigned to bus", bus });
 });
 
-// ✅ GET /api/drivers/:id/logs — View trips or performance logs
+// GET /api/drivers/:id/logs — View trips or performance logs
 export const getDriverLogs = wrapAsync(async (req: Request, res: Response) => {
   const driver = await User.findById(req.params.id);
   if (!driver || driver.role !== "driver")

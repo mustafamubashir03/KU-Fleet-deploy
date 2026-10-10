@@ -90,13 +90,24 @@ export async function handleParsedMessage(msg: ParsedMessage): Promise<void> {
   }
 
   // ───────── SOCKET EMITS ─────────
+  //
+  // Both rooms receive the SAME nested shape so a client handler written for
+  // one works against the other. The difference is deliberate and is the
+  // privacy boundary: only the admin feed carries the raw tracker IMEI.
+  //   admins   -> { imei, busId, gps: coords | null }
+  //   students -> {            busId, gps: coords | null }   (no IMEI)
   if (io) {
     io.to(ROOMS.ADMINS).emit(EVENTS.GPS_DATA, { imei, busId, gps: coords });
-    io.to(ROOMS.STUDENTS).emit(
-      EVENTS.GPS_DATA,
-      coords ? { busId, ...coords } : { busId }
-    );
-    if (busId) io.to(ROOMS.bus(busId)).emit(EVENTS.GPS_DATA, coords);
+    io.to(ROOMS.STUDENTS).emit(EVENTS.GPS_DATA, { busId, gps: coords });
+
+    // Per-bus rooms are admin-only (enforced in server.ts joinRoom). Only emit
+    // when someone is actually subscribed, otherwise this is a wasted emit.
+    if (busId) {
+      const members = io.sockets.adapter.rooms.get(ROOMS.bus(busId));
+      if (members && members.size > 0) {
+        io.to(ROOMS.bus(busId)).emit(EVENTS.GPS_DATA, coords);
+      }
+    }
   }
 
   if (!coords || !busId) return;
@@ -156,22 +167,36 @@ export async function handleParsedMessage(msg: ParsedMessage): Promise<void> {
 
     // START TRIP
     if (!activeTrip && coords.speed >= MIN_SPEED_KMH) {
-      const trip = await TripLog.create({
-        bus: busId,
-        driver: bus?.driver,
-        route: route?._id,
-        startTime: coords.timestamp,
-        coordinates: [coords],
-        status: "in_progress",
-      });
+      // Two GPS packets for the same bus can be in flight concurrently (multiple
+      // frames in one chunk, or several tracker connections), so both could
+      // observe "no active trip" and each create an in_progress TripLog.
+      // Serialise with the same Redis NX lock already used for alerts, then
+      // re-check the active trip under the lock.
+      const startLock = await acquireLock(`trip:start:${busId}`, ALERT_DEDUPE_SECONDS);
+      if (!startLock) return;
 
-      bufferCoordinate(busId, coords);
-      lastMovementAt.set(imei, Date.now());
+      const stillNoActiveTrip = await TripLog.findOne({ bus: busId, endTime: null })
+        .select("_id")
+        .lean();
 
-      io?.to(ROOMS.ADMINS).emit(EVENTS.TRIP_STARTED, {
-        tripId: String(trip._id),
-        busId,
-      });
+      if (!stillNoActiveTrip) {
+        const trip = await TripLog.create({
+          bus: busId,
+          driver: bus?.driver,
+          route: route?._id,
+          startTime: coords.timestamp,
+          coordinates: [coords],
+          status: "in_progress",
+        });
+
+        bufferCoordinate(busId, coords);
+        lastMovementAt.set(imei, Date.now());
+
+        io?.to(ROOMS.ADMINS).emit(EVENTS.TRIP_STARTED, {
+          tripId: String(trip._id),
+          busId,
+        });
+      }
 
       return;
     }

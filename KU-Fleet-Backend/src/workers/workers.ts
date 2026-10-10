@@ -157,6 +157,13 @@ export const analyticsWorker = new Worker<AnalyticsJobPayload>(
 );
 
 /* -------------------------- LOGGING -------------------------- */
+// NOTE: A third worker for "cleanupQueue" used to live here. It ignored
+// job.name entirely and always ran `TripLog.deleteMany({ endTime: { $lt: now-30d } })`,
+// so any job enqueued as clearExpiredCache / archiveOldData / cleanupOldAlerts /
+// cleanupOldFeedback landing on it would have deleted trip logs instead of
+// performing its own action. The real, name-aware implementation is
+// src/workers/cleanupWorker.ts. See test/queue-topology.test.mjs.
+
 [tripWorker, analyticsWorker].forEach(worker => {
   worker.on("completed", job => console.log(`✅ ${worker.name} completed ${job.name}`));
   worker.on("failed", (job, err) => console.error(`❌ ${worker.name} failed ${job?.name}`, err));

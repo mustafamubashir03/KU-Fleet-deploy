@@ -4,7 +4,7 @@ import Bus from "../models/Bus.model";
 import User from "../models/User.model";
 import { wrapAsync } from "../middleware/errorHandler";
 
-/** ✅ Submit Feedback (linked with Bus and RFID) */
+/** Submit Feedback (linked with Bus and RFID) */
 export const submitFeedback = wrapAsync(async (req: Request, res: Response) => {
   const { busId, rating, comment, type, rfidCardUID } = req.body;
 
@@ -41,7 +41,7 @@ export const submitFeedback = wrapAsync(async (req: Request, res: Response) => {
   });
 });
 
-/** ✅ Get All Feedbacks (Admin View) */
+/** Get All Feedbacks (Admin View) */
 export const getAllFeedbacks = wrapAsync(async (_req: Request, res: Response) => {
   const feedbacks = await Feedback.find()
     .populate("bus", "busNumber")
@@ -51,7 +51,7 @@ export const getAllFeedbacks = wrapAsync(async (_req: Request, res: Response) =>
   res.status(200).json({ success: true, count: feedbacks.length, feedbacks });
 });
 
-/** ✅ Get Feedback by Bus */
+/** Get Feedback by Bus */
 export const getFeedbackByBus = wrapAsync(async (req: Request, res: Response) => {
   const { busId } = req.params;
   const feedbacks = await Feedback.find({ bus: busId }).sort({ createdAt: -1 });
@@ -62,7 +62,7 @@ export const getFeedbackByBus = wrapAsync(async (req: Request, res: Response) =>
   res.status(200).json({ success: true, count: feedbacks.length, feedbacks });
 });
 
-/** ✅ Mark Feedback as Resolved (Admin Action) */
+/** Mark Feedback as Resolved (Admin Action) */
 export const resolveFeedback = wrapAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { response } = req.body;
@@ -77,7 +77,7 @@ export const resolveFeedback = wrapAsync(async (req: Request, res: Response) => 
   res.status(200).json({ success: true, message: "Feedback resolved", feedback });
 });
 
-/** ✅ Delete Feedback (Admin Only) */
+/** Delete Feedback (Admin Only) */
 export const deleteFeedback = wrapAsync(async (req: Request, res: Response) => {
   const deleted = await Feedback.findByIdAndDelete(req.params.id);
   if (!deleted) return res.status(404).json({ message: "Feedback not found" });

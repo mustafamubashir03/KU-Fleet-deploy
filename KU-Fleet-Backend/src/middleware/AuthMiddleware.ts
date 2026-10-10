@@ -18,7 +18,11 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) return res.status(500).json({ message: "JWT secret not configured" });
     
-    const decoded = jwt.verify(token as string, jwtSecret) as unknown as DecodedToken;
+    // Pin the algorithm. verifyToken() in utils/generateToken.ts already does
+    // this; this middleware was calling jwt.verify() without it.
+    const decoded = jwt.verify(token as string, jwtSecret, {
+      algorithms: ["HS256"],
+    }) as unknown as DecodedToken;
     if (!decoded.id) return res.status(401).json({ message: "Invalid token" });
 
     const user = await User.findById(decoded.id).select("-password");

@@ -1,5 +1,8 @@
-import express from "express";
+﻿import express from "express";
+
+import { protect, adminOnly } from "../middleware/AuthMiddleware";
 import {
+
   createRoute,
   getRoutes,
   getRouteById,
@@ -9,15 +12,15 @@ import {
 const router = express.Router();
 
 // Create new route
-router.post("/", createRoute);
+router.post("/", protect, adminOnly, createRoute);
 
 // Get all routes
-router.get("/", getRoutes);
+router.get("/", protect, getRoutes);
 
 // Get single route
-router.get("/:id", getRouteById);
+router.get("/:id", protect, getRouteById);
 
 // Delete route
-router.delete("/:id", deleteRoute);
+router.delete("/:id", protect, adminOnly, deleteRoute);
 
 export default router;

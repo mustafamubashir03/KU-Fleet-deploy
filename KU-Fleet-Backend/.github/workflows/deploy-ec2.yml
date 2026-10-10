@@ -1,59 +1,201 @@
-name: Deploy to EC2 (dev)
+name: Deploy backend to EC2
+
+# NOTE: this workflow is NOT safe to enable yet.
+#
+# It is committed disabled so it cannot run by accident while the remaining
+# defects below are unresolved. Enable with:
+#   gh workflow enable "Deploy backend to EC2"
+#
+# Blocking issues that must be settled before enabling:
+#   1. Authentication. This uses a long-lived EC2_SSH_KEY secret. AWS OIDC
+#      (id-token: write + an IAM role trusting token.actions.githubusercontent.com)
+#      plus SSM is the safer route, but it needs infrastructure you do not
+#      have yet. Do NOT widen the security group to 0.0.0.0/0 to make it work.
+#   2. Secrets. EC2_USER / EC2_HOST / EC2_REMOTE_DIR must exist as repository
+#      secrets.
+#   3. PM2 must exist on the host with an ecosystem config (see
+#      deploy/ecosystem.config.cjs), otherwise `pm2 start` targets a process
+#      name that was never registered.
+#
+# What was fixed relative to the previous version of this file:
+#   - working-directory was the repo root, so `rsync ./` shipped the whole
+#     monorepo. Now only KU-Fleet-Backend/ is synced.
+#   - rsync --delete removed files on the host before the new build was known
+#     to be good. Now it syncs into a fresh release directory.
+#   - `npm run build || true` swallowed build failures. Now `set -e` + explicit
+#     artifact checks.
+#   - PM2 was stopped before the replacement was validated. Now the new release
+#     is built, smoke-tested, and only then swapped in, with the previous
+#     release kept for rollback.
+#   - `dist/core/server.js` never existed. The real entry point is
+#     dist/server.js.
+#   - Node 18 install check contradicted engines.node = 22.x.
+#   - The old workflow triggered on `develop`, a branch that does not exist.
 
 on:
-  push:
-    branches: [ develop ]   # change to main if you prefer
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref to deploy'
+        required: true
+        default: 'render-deploy'
 
 jobs:
   deploy:
+    # Serialised: GitHub already runs one job per workflow, and concurrency
+    # prevents a second dispatch from racing the release swap.
     runs-on: ubuntu-latest
+    environment: production
+
+    concurrency:
+      group: ec2-production-deploy
+      cancel-in-progress: false
+
+    defaults:
+      run:
+        working-directory: KU-Fleet-Backend
+
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Build and test LOCALLY first. Nothing is sent to the host until this
+      # passes, so a broken commit can never take production down.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          test -f dist/server.js || { echo "::error::dist/server.js missing"; exit 1; }
+          test -f dist/tcp/tcpServer.js || { echo "::error::dist/tcp/tcpServer.js missing"; exit 1; }
+          echo "artifacts verified"
 
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Sync project to EC2
-        env:
-          EC2_USER: ${{ secrets.EC2_USER }}      # e.g., ubuntu
-          EC2_HOST: ${{ secrets.EC2_HOST }}      # IP or hostname
-          REMOTE_DIR: ${{ secrets.EC2_REMOTE_DIR }} # e.g. ~/kufleet-dev
-        run: |
-          echo "Syncing files to ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}"
-          rsync -azh --delete --exclude node_modules --exclude dist ./ ${EC2_USER}@${EC2_HOST}:${REMOTE_DIR}
-
-      - name: Remote: install deps & restart (pm2)
+      - name: Upload release to EC2
         env:
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          REMOTE_DIR: ${{ secrets.EC2_REMOTE_DIR }}
+          EC2_REMOTE_DIR: ${{ secrets.EC2_REMOTE_DIR }}
+          GIT_SHA: ${{ github.sha }}
         run: |
-          ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} <<'SSH'
-            set -e
-            cd "$REMOTE_DIR"
+          set -euo pipefail
+          RELEASE="${EC2_REMOTE_DIR}/releases/${GIT_SHA}"
+          ssh -o StrictHostKeyChecking=accept-new "${EC2_USER}@${EC2_HOST}" "mkdir -p '${RELEASE}'"
+          # --delete is scoped to the NEW empty release directory only, so it can
+          # never remove files from a live release.
+          rsync -azh --delete \
+            --exclude node_modules \
+            --exclude .env \
+            --exclude '.git' \
+            --exclude 'releases' \
+            ./ "${EC2_USER}@${EC2_HOST}:${RELEASE}/"
 
-            # ensure Node 18+ installed - optional (comment if already installed)
-            if ! node -v | grep -q "v18"; then
-              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-              sudo apt-get install -y nodejs build-essential
-            fi
+      - name: Install, validate and activate on EC2
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_REMOTE_DIR: ${{ secrets.EC2_REMOTE_DIR }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh -o StrictHostKeyChecking=accept-new "${EC2_USER}@${EC2_HOST}" bash -s <<REMOTE
+          set -euo pipefail
 
-            # install
-            npm ci
+          REMOTE_DIR="${EC2_REMOTE_DIR}"
+          RELEASE="${REMOTE_DIR}/releases/${GIT_SHA}"
+          CURRENT="${REMOTE_DIR}/current"
 
-            # build (if you use TS build)
-            npm run build || true
+          cd "${RELEASE}"
 
-            # ensure pm2 present
-            if ! command -v pm2 >/dev/null 2>&1; then
-              sudo npm install -g pm2
-            fi
+          # Production dependencies. npm ci uses the committed lockfile.
+          npm ci --omit=dev
 
-            # stop old, start new with ecosystem or direct file
-            pm2 stop kufleet || true
-            pm2 start ecosystem.config.js --only kufleet || pm2 start dist/core/server.js --name kufleet
-            pm2 save
-          SSH
+          # The compiled entry point must exist BEFORE anything is swapped.
+          test -f dist/server.js || { echo "dist/server.js missing in ${RELEASE}"; exit 1; }
+          test -f dist/tcp/tcpServer.js || { echo "dist/tcp/tcpServer.js missing"; exit 1; }
+
+          # .env lives outside the release so it survives every deploy.
+          if [ ! -f "${REMOTE_DIR}/.env" ]; then
+            echo "ERROR: ${REMOTE_DIR}/.env is missing. Refusing to deploy."
+            exit 1
+          fi
+
+          # Atomically point "current" at the new release.
+          ln -sfn "${RELEASE}" "${CURRENT}.new"
+          mv -Tf "${CURRENT}.new" "${CURRENT}"
+
+          # Keep the previous release for rollback.
+          if [ -L "${CURRENT}" ]; then
+            readlink "${CURRENT}" > "${REMOTE_DIR}/.previous-release" || true
+          fi
+
+          # Restart only now that the new build is in place and validated.
+          cd "${CURRENT}"
+          pm2 reload deploy/ecosystem.config.cjs --update-env
+          pm2 save
+
+          echo "activated ${GIT_SHA}"
+          REMOTE
+
+      - name: Post-deploy smoke test
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          BASE_URL: ${{ secrets.EC2_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASE_URL:-}" ]; then
+            echo "::warning::EC2_BASE_URL not set; skipping remote smoke test"
+            exit 0
+          fi
+          ssh -o StrictHostKeyChecking=accept-new "${EC2_USER}@${EC2_HOST}" bash -s <<REMOTE
+          set -euo pipefail
+          code=$(curl -s -o /tmp/health.json -w '%{http_code}' http://127.0.0.1:"${PORT:-3000}"/)
+          echo "health endpoint HTTP ${code}"
+          cat /tmp/health.json
+          test "${code}" = "200" || { echo "::error::health check failed"; exit 1; }
+          REMOTE
+
+      - name: Rollback on failure
+        if: failure()
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_REMOTE_DIR: ${{ secrets.EC2_REMOTE_DIR }}
+        run: |
+          set -euo pipefail
+          ssh -o StrictHostKeyChecking=accept-new "${EC2_USER}@${EC2_HOST}" bash -s <<REMOTE
+          set -euo pipefail
+          REMOTE_DIR="${EC2_REMOTE_DIR}"
+          PREV=$(cat "${REMOTE_DIR}/.previous-release" 2>/dev/null || true)
+          if [ -z "${PREV}" ] || [ ! -f "${PREV}/dist/server.js" ]; then
+            echo "No previous release recorded; manual intervention required."
+            exit 0
+          fi
+          echo "Rolling back to ${PREV}"
+          ln -sfn "${PREV}" "${REMOTE_DIR}/current.new"
+          mv -Tf "${REMOTE_DIR}/current.new" "${REMOTE_DIR}/current"
+          cd "${REMOTE_DIR}/current"
+          pm2 reload deploy/ecosystem.config.cjs --update-env
+          pm2 save
+          REMOTE

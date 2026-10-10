@@ -2,105 +2,96 @@
 import net from "net";
 import Gt06 from "gt06";
 import { handleParsedMessage } from "../services/gpsHandler";
-import { app } from "../app";
+import {
+  extractCompleteFrames,
+  MAX_BUFFERED_BYTES,
+} from "./gt06Framing";
 
 export async function startTcpServer(port: number) {
+  const openSockets = new Set<net.Socket>();
+
   const server = net.createServer((client) => {
+    // A GT06 tracker holds one long-lived TCP session and the ACK must be
+    // written back on the same socket, so all parsing is scoped to `client`.
     const gt06 = new Gt06();
+    let pending: Buffer = Buffer.alloc(0);
 
-    console.log("📡 TCP client connected:", {
-      ip: client.remoteAddress,
-      port: client.remotePort,
-      time: new Date().toISOString(),
-    });
+    openSockets.add(client);
+    client.on("close", () => openSockets.delete(client));
 
-    client.on("data", async (data: Buffer) => {
-      console.log("\n================= RAW TRACKER PACKET =================");
-      console.log("🕒 Time:", new Date().toISOString());
-      console.log("📡 From:", client.remoteAddress, client.remotePort);
+    client.on("data", (data: Buffer) => {
+      pending = Buffer.concat([pending, data]);
 
-      // 🔴 RAW DATA (ABSOLUTE TRUTH)
-      console.log("📦 RAW BUFFER (HEX):", data.toString("hex"));
-      console.log("📨 RAW STRING (utf8):", data.toString());
-
-      console.log("📏 Packet Length:", data.length);
-      console.log("======================================================\n");
-
-      // 🧠 Attempt GT06 parse (preserve original logic)
-      try {
-        gt06.parse(data);
-      } catch (e: any) {
-        console.log("❌ GT06 parse error:", e?.message ?? e);
+      if (pending.length > MAX_BUFFERED_BYTES) {
+        console.error("GT06 receive buffer exceeded limit, resetting for this client");
+        pending = Buffer.alloc(0);
         return;
       }
 
-      // 🔁 Log protocol expectations
-      console.log("📥 GT06 expects response:", gt06.expectsResponse);
+      // Only hand whole frames to the parser (see gt06Framing.ts for why).
+      const { frames, rest } = extractCompleteFrames(pending);
+      pending = rest;
+      if (frames.length === 0) return;
 
-      if (gt06.expectsResponse && gt06.responseMsg) {
-        console.log(
-          "📤 Sending GT06 response (HEX):",
-          Buffer.from(gt06.responseMsg).toString("hex")
-        );
-        client.write(gt06.responseMsg);
-      }
+      void (async () => {
+        for (const frame of frames) {
+          try {
+            gt06.parse(frame);
+          } catch (e: any) {
+            // A malformed frame must never stop the frames after it.
+            console.error("GT06 parse error:", e?.message ?? e);
+            continue;
+          }
 
-      // 🧩 Parsed messages from GT06
-      if (gt06.msgBuffer?.length) {
-        console.log(`📨 Parsed Messages Count: ${gt06.msgBuffer.length}`);
-      } else {
-        console.log("⚠️ No parsed messages in buffer");
-      }
+          if (gt06.expectsResponse && gt06.responseMsg) {
+            try {
+              client.write(gt06.responseMsg);
+            } catch (err) {
+              console.error("GT06 ack write error:", (err as Error).message);
+            }
+          }
 
-      for (const msg of gt06.msgBuffer as any[]) {
-        console.log("\n------------- PARSED GT06 MESSAGE ----------------");
-        console.log("📄 Parsed Message (RAW OBJECT):");
-        console.dir(msg, { depth: null });
+          for (const msg of gt06.msgBuffer as any[]) {
+            try {
+              await handleParsedMessage(msg);
+            } catch (err) {
+              console.error("Error handling parsed message:", err);
+            }
+          }
 
-        // 🔍 Try extracting IMEI if present
-        if (msg?.imei) {
-          console.log("🆔 IMEI:", msg.imei);
+          gt06.clearMsgBuffer();
         }
-
-        try {
-          // Original behavior preserved
-          await handleParsedMessage(msg);
-          console.log(`✅ Message passed to handleParsedMessage for IMEI: ${msg.imei}, Event: ${msg.event?.string}`);
-
-        } catch (err) {
-          console.error("❌ Error handling parsed message:", err);
-        }
-        console.log("--------------------------------------------------\n");
-      }
-
-      // clear buffer (preserve original)
-      gt06.clearMsgBuffer();
+      })();
     });
 
     client.on("end", () => {
-      console.log("❌ TCP client disconnected:", {
-        ip: client.remoteAddress,
-        time: new Date().toISOString(),
-      });
+      // client disconnected
     });
 
     client.on("error", (err) => {
-      console.error("⚠️ TCP client error:", {
-        ip: client.remoteAddress,
-        error: err.message,
-      });
+      console.error("TCP client error:", err.message);
     });
   });
 
-  return new Promise<void>((resolve, reject) => {
+  // Resolve with the net.Server so graceful shutdown can stop accepting new
+  // tracker sessions and close existing sockets.
+  return new Promise<net.Server>((resolve, reject) => {
     server.listen(port, () => {
-      console.log(`✅ GT06 TCP server listening on port ${port}`);
-      resolve();
+      console.log(`TCP server listening on port ${port}`);
+      resolve(server);
     });
 
     server.on("error", (err) => {
-      console.error("❌ TCP server error:", err);
+      console.error("TCP server error:", err);
       reject(err);
     });
+  }).then((srv) => {
+    (
+      srv as net.Server & { closeAllTrackerSockets?: () => void }
+    ).closeAllTrackerSockets = () => {
+      for (const socket of openSockets) socket.destroy();
+      openSockets.clear();
+    };
+    return srv;
   });
 }

@@ -1,10 +1,10 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { getAllRfidLogs, getBusRfidLogs, getStudentRfidLogs, handleRfidScan } from "../controllers/rfidController";
 import { adminOnly, protect } from "../middleware/AuthMiddleware";
 
 const router = Router();
 
-router.post("/scan", handleRfidScan);
+router.post("/scan", protect, handleRfidScan);
 // 2️⃣ Get all RFID logs (admin only)
 router.get("/logs", protect, getAllRfidLogs);
 

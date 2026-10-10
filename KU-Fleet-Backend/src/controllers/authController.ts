@@ -5,6 +5,56 @@ import { IUser } from "../interfaces/User";
 import { generateToken } from "../utils/generateToken";
 
 /** ----------------- GENERAL USER ----------------- */
+
+/** Roles that may be requested through this UNAUTHENTICATED endpoint. */
+export const ALL_ROLES = ["admin", "driver", "student", "parent"] as const;
+
+export type RoleValidation =
+  | { ok: true; role: (typeof ALL_ROLES)[number] }
+  | { ok: false; status: 400 | 403; message: string };
+
+/**
+ * Decide which role a public registration may create.
+ *
+ * `/api/auth/register` is unauthenticated, so honouring a client-supplied
+ * `role` verbatim would let anyone POST {role:"admin"} and take over the
+ * deployment. Admin is therefore refused unless an operator explicitly opts in
+ * with ALLOW_ADMIN_BOOTSTRAP=true (used once to create the first admin).
+ *
+ * Extracted as a pure function so the rule can be tested without a database.
+ */
+export function validateRequestedRole(
+  requestedRole: unknown,
+  adminBootstrapEnabled: boolean
+): RoleValidation {
+  if (requestedRole === undefined || requestedRole === null) {
+    // Same default as the User schema.
+    return { ok: true, role: "student" };
+  }
+
+  if (
+    typeof requestedRole !== "string" ||
+    !ALL_ROLES.includes(requestedRole as (typeof ALL_ROLES)[number])
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      message: `Invalid role. Allowed values: ${ALL_ROLES.join(", ")}`,
+    };
+  }
+
+  if (requestedRole === "admin" && !adminBootstrapEnabled) {
+    return {
+      ok: false,
+      status: 403,
+      message:
+        "Admin registration is not available on this endpoint. Ask an existing admin, or set ALLOW_ADMIN_BOOTSTRAP=true for first-time bootstrap only.",
+    };
+  }
+
+  return { ok: true, role: requestedRole as (typeof ALL_ROLES)[number] };
+}
+
 export const registerUser = async (req: Request, res: Response) => {
   try {
     const { name, email, password, role } = req.body;
@@ -14,6 +64,16 @@ export const registerUser = async (req: Request, res: Response) => {
       return res.status(400).json({
         message: "Email and password are required for this registration type",
       });
+    }
+
+    // Validate the requested role instead of passing it straight to Mongoose
+    // (an unknown value previously surfaced as a 500 from the enum check).
+    const validated = validateRequestedRole(
+      role,
+      process.env.ALLOW_ADMIN_BOOTSTRAP === "true"
+    );
+    if (!validated.ok) {
+      return res.status(validated.status).json({ message: validated.message });
     }
 
     const exists = await User.findOne({ email });
@@ -26,7 +86,7 @@ export const registerUser = async (req: Request, res: Response) => {
       name,
       email,
       password: hashed,
-      role,
+      role: validated.role,
     });
 
     res.status(201).json({
