@@ -19,10 +19,24 @@ import { routeParam } from "../utils/validation";
 const generateCameraStreamUrls = async (bus: IBus): Promise<Record<number, string>> => {
   const urls: Record<number, string> = {};
   if (!bus.camera?.deviceId) return urls;
-  const channels = bus.camera.channels ?? [1]; // default to [1] if undefined
-  for (const ch of channels) {
-    urls[ch] = await buildCameraStreamUrl(bus.camera.deviceId, ch);
+
+  // Camera streaming depends on the external MTX service and is optional. A
+  // single unreachable/unconfigured MTX must never fail the whole bus list:
+  // this call sits inside Promise.all() in getBuses(), so one rejected bus
+  // previously turned a healthy collection into HTTP 500 for every record.
+  try {
+    const channels = bus.camera.channels ?? [1]; // default to [1] if undefined
+    for (const ch of channels) {
+      urls[ch] = await buildCameraStreamUrl(bus.camera.deviceId, ch);
+    }
+  } catch (error) {
+    console.error(
+      `[camera] stream URLs unavailable for bus ${String(bus._id)}:`,
+      error instanceof Error ? error.message : error
+    );
+    return {};
   }
+
   return urls;
 };
 
